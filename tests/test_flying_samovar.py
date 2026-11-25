@@ -4,7 +4,7 @@
 Источник правды: SPEC.md и TEST_CASES.md. ID каждого тест-кейса указан
 в имени и в docstring теста.
 
-Модульные тесты (TC-01 … TC-19) написаны по паттерну AAA, сценарные
+Модульные тесты (TC-01 … TC-19, TC-24) написаны по паттерну AAA, сценарные
 (TC-20 … TC-23) — по паттерну Given-When-Then через тестовую обёртку Pilot.
 
 Запуск из корня репозитория:
@@ -25,7 +25,7 @@ from flying_samovar import (
 
 NAN = float("nan")
 INF = float("inf")
-PLACES = 9  # допуск сравнения вещественных чисел (SPEC, раздел 3)
+DELTA = 1e-9  # допуск сравнения вещественных чисел (SPEC, раздел 3.0 п.5)
 
 NUMERIC_PARAMS = ("mass_kg", "envelope_volume_m3", "max_speed_kmh")
 PUBLIC_ATTRIBUTES = (
@@ -79,25 +79,25 @@ class Pilot:
     """Эмулятор пилота-чаевода: управляет самоваром на доменном языке."""
 
     def __init__(self, samovar):
-        self.самовар = samovar
+        self.samovar = samovar
 
-    def взлететь(self, груз_кг=0.0):
-        return self.самовар.take_off(груз_кг)
+    def take_off(self, cargo_kg=0.0):
+        return self.samovar.take_off(cargo_kg)
 
-    def лететь(self, км, погода):
-        return self.самовар.fly(км, погода)
+    def fly(self, distance_km, weather):
+        return self.samovar.fly(distance_km, weather)
 
-    def сесть(self):
-        return self.самовар.land()
+    def land(self):
+        return self.samovar.land()
 
-    def заправиться(self, единиц):
-        return self.самовар.refuel(единиц)
+    def refuel(self, amount):
+        return self.samovar.refuel(amount)
 
-    def чинить_баллон(self):
-        return self.самовар.repair_envelope()
+    def repair_envelope(self):
+        return self.samovar.repair_envelope()
 
-    def проверить_препятствие(self, препятствие):
-        return self.самовар.can_overcome(препятствие)
+    def check_obstacle(self, obstacle):
+        return self.samovar.can_overcome(obstacle)
 
 
 class SamovarTestCase(unittest.TestCase):
@@ -306,28 +306,28 @@ class FlyTests(SamovarTestCase):
                 elapsed = samovar.fly(20, weather)
                 # Assert
                 self.assertIsInstance(elapsed, float)
-                self.assertAlmostEqual(elapsed, expected_time, places=PLACES)
-                self.assertAlmostEqual(samovar.energy, expected_energy, places=PLACES)
-                self.assertAlmostEqual(samovar.position_km, 20.0, places=PLACES)
+                self.assertAlmostEqual(elapsed, expected_time, delta=DELTA)
+                self.assertAlmostEqual(samovar.energy, expected_energy, delta=DELTA)
+                self.assertAlmostEqual(samovar.position_km, 20.0, delta=DELTA)
                 self.assertIs(samovar.is_flying, True)
                 self.assertIs(samovar.envelope_intact, True)
         # Дробная дистанция: 2.5 км при штиле
         samovar = flying(max_speed_kmh=40)
         elapsed = samovar.fly(2.5, "calm")
-        self.assertAlmostEqual(elapsed, 0.0625, places=PLACES)
-        self.assertAlmostEqual(samovar.energy, 85.0, places=PLACES)
+        self.assertAlmostEqual(elapsed, 0.0625, delta=DELTA)
+        self.assertAlmostEqual(samovar.energy, 85.0, delta=DELTA)
         # Позиция и расход накапливаются между вызовами
         samovar = flying(max_speed_kmh=40)
         samovar.fly(20, "calm")
         samovar.fly(10, "calm")
-        self.assertAlmostEqual(samovar.position_km, 30.0, places=PLACES)
-        self.assertAlmostEqual(samovar.energy, 30.0, places=PLACES)
+        self.assertAlmostEqual(samovar.position_km, 30.0, delta=DELTA)
+        self.assertAlmostEqual(samovar.energy, 30.0, delta=DELTA)
         # Сценарий 1 из SPEC 4.1: скорость 60, 30 км при штиле
         samovar = flying(max_speed_kmh=60)
         elapsed = samovar.fly(30, "calm")
-        self.assertAlmostEqual(elapsed, 0.5, places=PLACES)
-        self.assertAlmostEqual(samovar.position_km, 30.0, places=PLACES)
-        self.assertAlmostEqual(samovar.energy, 30.0, places=PLACES)
+        self.assertAlmostEqual(elapsed, 0.5, delta=DELTA)
+        self.assertAlmostEqual(samovar.position_km, 30.0, delta=DELTA)
+        self.assertAlmostEqual(samovar.energy, 30.0, delta=DELTA)
         self.assertIs(samovar.is_flying, True)
 
     def test_TC_09_fly_storm_tears_envelope(self):
@@ -337,9 +337,9 @@ class FlyTests(SamovarTestCase):
         # Act
         elapsed = samovar.fly(10, "storm")
         # Assert
-        self.assertAlmostEqual(elapsed, 1.0, places=PLACES)  # скорость 10 км/ч
-        self.assertAlmostEqual(samovar.energy, 50.0, places=PLACES)
-        self.assertAlmostEqual(samovar.position_km, 10.0, places=PLACES)
+        self.assertAlmostEqual(elapsed, 1.0, delta=DELTA)  # скорость 10 км/ч
+        self.assertAlmostEqual(samovar.energy, 50.0, delta=DELTA)
+        self.assertAlmostEqual(samovar.position_km, 10.0, delta=DELTA)
         self.assertIs(samovar.envelope_intact, False)
         self.assertIs(samovar.is_flying, True)
         # Энергии ровно хватает: после взлёта 40, бурей 10 км -> 0
@@ -521,7 +521,7 @@ class CalculateEnergyTests(SamovarTestCase):
             with self.subTest(weather=weather, distance=distance):
                 result = samovar.calculate_energy(distance, weather)
                 self.assertIsInstance(result, float)
-                self.assertAlmostEqual(result, expected, places=PLACES)
+                self.assertAlmostEqual(result, expected, delta=DELTA)
         self.assertEqual(snapshot(samovar), before)
         # Переполнение возвращает бесконечность
         self.assertEqual(samovar.calculate_energy(1e308, "storm"), INF)
@@ -544,6 +544,9 @@ class CalculateEnergyTests(SamovarTestCase):
                     samovar.calculate_energy(10, bad)
         with self.assertRaises(TypeError):
             samovar.calculate_energy("10", "hurricane")  # типы раньше значений
+        with self.assertRaises(TypeError):
+            samovar.calculate_energy(0, 5)  # тип погоды раньше значения дистанции
+        self.assertEqual(snapshot(samovar), before)
 
 
 class RefuelTests(SamovarTestCase):
@@ -586,7 +589,17 @@ class RefuelTests(SamovarTestCase):
 class EnvelopeTests(SamovarTestCase):
     def test_TC_17_damage_and_repair_envelope(self):
         """TC-17: повреждение и ремонт баллона (стоимость 15, ограничения)."""
-        # (a) damage_envelope идемпотентен и работает в воздухе
+        # (a) damage_envelope на земле: допустим, идемпотентен, остальное состояние не меняется
+        samovar = make(energy=50)
+        self.assertIsNone(samovar.damage_envelope())
+        self.assertIs(samovar.envelope_intact, False)
+        self.assertIs(samovar.is_flying, False)
+        self.assertEqual(
+            (samovar.energy, samovar.position_km, samovar.load_kg), (50.0, 0.0, 0.0)
+        )
+        samovar.damage_envelope()
+        self.assertIs(samovar.envelope_intact, False)
+        # (a2) damage_envelope в воздухе
         samovar = flying()
         self.assertIsNone(samovar.damage_envelope())
         self.assertIs(samovar.envelope_intact, False)
@@ -620,6 +633,42 @@ class EnvelopeTests(SamovarTestCase):
         samovar = flying(energy=15)  # energy == 5
         samovar.damage_envelope()
         self.assert_fails_atomically(SamovarNotOnGround, samovar, samovar.repair_envelope)
+
+
+class EnergyToleranceTests(SamovarTestCase):
+    def test_TC_24_energy_sufficiency_tolerance(self):
+        """TC-24: допуск 1e-9 при проверке запаса энергии (take_off, fly, repair_envelope)."""
+        # (a) пример ревьюера: 1.0 - 0.9 == 0.09999999999999998, второй перелёт допустим
+        samovar = flying(energy=11)  # energy == 1.0
+        samovar.fly(0.9, "tailwind")
+        samovar.fly(0.1, "tailwind")
+        self.assertAlmostEqual(samovar.position_km, 1.0, delta=DELTA)
+        self.assertEqual(samovar.energy, 0.0)
+        # (b) fly: потребность на 5e-10 больше запаса, внутри допуска
+        samovar = flying(energy=11)
+        samovar.fly(0.5 + 2.5e-10, "calm")
+        self.assertEqual(samovar.energy, 0.0)
+        # (c) fly: потребность на 2e-8 больше запаса, вне допуска
+        samovar = flying(energy=11)
+        self.assert_fails_atomically(SamovarNoEnergy, samovar,
+                                     samovar.fly, 0.5 + 1e-8, "calm")
+        # (d) take_off: на 5e-10 меньше 10 допустимо, на 1e-8 меньше — нет
+        samovar = make(energy=10 - 5e-10)
+        samovar.take_off()
+        self.assertIs(samovar.is_flying, True)
+        self.assertEqual(samovar.energy, 0.0)
+        samovar = make(energy=10 - 1e-8)
+        self.assert_fails_atomically(SamovarNoEnergy, samovar, samovar.take_off)
+        # (e) repair_envelope: на 5e-10 меньше 15 допустимо, на 1e-8 меньше — нет
+        samovar = make(energy=15 - 5e-10)
+        samovar.damage_envelope()
+        samovar.repair_envelope()
+        self.assertIs(samovar.envelope_intact, True)
+        self.assertEqual(samovar.energy, 0.0)
+        samovar = make(energy=15 - 1e-8)
+        samovar.damage_envelope()
+        self.assert_fails_atomically(SamovarNoEnergy, samovar, samovar.repair_envelope)
+        self.assertIs(samovar.envelope_intact, False)
 
 
 class StatusAndExceptionTests(SamovarTestCase):
@@ -682,228 +731,228 @@ class ScenarioTests(SamovarTestCase):
     def test_TC_20_tea_flight_over_the_pass(self):
         """TC-20: сценарий 5 «Чайный рейс над перевалом»."""
         # Given
-        самовар = make(mass_kg=120, envelope_volume_m3=400, max_speed_kmh=40, energy=100)
-        пилот = Pilot(самовар)
-        self.assertIs(самовар.is_flying, False)
-        self.assertIs(самовар.envelope_intact, True)
+        samovar = make(mass_kg=120, envelope_volume_m3=400, max_speed_kmh=40, energy=100)
+        pilot = Pilot(samovar)
+        self.assertIs(samovar.is_flying, False)
+        self.assertIs(samovar.envelope_intact, True)
 
         # When: пилот берёт 60 кг груза и взлетает
-        пилот.взлететь(60)
+        pilot.take_off(60)
         # Then
-        self.assertIs(самовар.is_flying, True)
-        self.assertEqual(самовар.load_kg, 60.0)
-        self.assertEqual(самовар.energy, 90.0)
+        self.assertIs(samovar.is_flying, True)
+        self.assertEqual(samovar.load_kg, 60.0)
+        self.assertEqual(samovar.energy, 90.0)
 
         # When: 20 км при попутном ветре
-        время = пилот.лететь(20, "tailwind")
+        elapsed = pilot.fly(20, "tailwind")
         # Then
-        self.assertAlmostEqual(время, 20 / 60, places=PLACES)
-        self.assertEqual(самовар.position_km, 20.0)
-        self.assertEqual(самовар.energy, 70.0)
+        self.assertAlmostEqual(elapsed, 20 / 60, delta=DELTA)
+        self.assertEqual(samovar.position_km, 20.0)
+        self.assertEqual(samovar.energy, 70.0)
 
         # When: проверка препятствий
         # Then
-        self.assertIs(пилот.проверить_препятствие("mountain"), True)
-        self.assertIs(пилот.проверить_препятствие("tree"), True)
-        self.assertIs(пилот.проверить_препятствие("gorge"), True)
+        self.assertIs(pilot.check_obstacle("mountain"), True)
+        self.assertIs(pilot.check_obstacle("tree"), True)
+        self.assertIs(pilot.check_obstacle("gorge"), True)
 
         # When: 10 км при встречном ветре
-        время = пилот.лететь(10, "headwind")
+        elapsed = pilot.fly(10, "headwind")
         # Then
-        self.assertAlmostEqual(время, 0.5, places=PLACES)
-        self.assertEqual(самовар.position_km, 30.0)
-        self.assertEqual(самовар.energy, 40.0)
-        self.assertIs(пилот.проверить_препятствие("mountain"), True)
+        self.assertAlmostEqual(elapsed, 0.5, delta=DELTA)
+        self.assertEqual(samovar.position_km, 30.0)
+        self.assertEqual(samovar.energy, 40.0)
+        self.assertIs(pilot.check_obstacle("mountain"), True)
 
         # When: 5 км в штиль
-        время = пилот.лететь(5, "calm")
+        elapsed = pilot.fly(5, "calm")
         # Then
-        self.assertAlmostEqual(время, 0.125, places=PLACES)
-        self.assertEqual(самовар.position_km, 35.0)
-        self.assertEqual(самовар.energy, 30.0)
-        self.assertIs(пилот.проверить_препятствие("mountain"), False)
+        self.assertAlmostEqual(elapsed, 0.125, delta=DELTA)
+        self.assertEqual(samovar.position_km, 35.0)
+        self.assertEqual(samovar.energy, 30.0)
+        self.assertIs(pilot.check_obstacle("mountain"), False)
 
         # When: посадка и заправка
-        пилот.сесть()
-        пилот.заправиться(50)
+        pilot.land()
+        pilot.refuel(50)
         # Then: итоговое состояние
-        self.assertIs(самовар.is_flying, False)
-        self.assertEqual(самовар.load_kg, 0.0)
-        self.assertEqual(самовар.position_km, 35.0)
-        self.assertEqual(самовар.energy, 80.0)
-        self.assertIs(самовар.envelope_intact, True)
+        self.assertIs(samovar.is_flying, False)
+        self.assertEqual(samovar.load_kg, 0.0)
+        self.assertEqual(samovar.position_km, 35.0)
+        self.assertEqual(samovar.energy, 80.0)
+        self.assertIs(samovar.envelope_intact, True)
 
     def test_TC_21_storm_over_the_gorge(self):
         """TC-21: сценарий 6 «Буря над ущельем»."""
         # Given
-        самовар = make(mass_kg=120, envelope_volume_m3=400, max_speed_kmh=40, energy=100)
-        пилот = Pilot(самовар)
+        samovar = make(mass_kg=120, envelope_volume_m3=400, max_speed_kmh=40, energy=100)
+        pilot = Pilot(samovar)
 
         # When: взлёт без груза и 10 км в штиль
-        пилот.взлететь()
-        время = пилот.лететь(10, "calm")
+        pilot.take_off()
+        elapsed = pilot.fly(10, "calm")
         # Then
-        self.assertAlmostEqual(время, 0.25, places=PLACES)
-        self.assertEqual(самовар.position_km, 10.0)
-        self.assertEqual(самовар.energy, 70.0)
+        self.assertAlmostEqual(elapsed, 0.25, delta=DELTA)
+        self.assertEqual(samovar.position_km, 10.0)
+        self.assertEqual(samovar.energy, 70.0)
 
         # When: 5 км сквозь бурю
-        время = пилот.лететь(5, "storm")
+        elapsed = pilot.fly(5, "storm")
         # Then: баллон разорван, самовар ещё в воздухе
-        self.assertAlmostEqual(время, 0.5, places=PLACES)
-        self.assertEqual(самовар.position_km, 15.0)
-        self.assertEqual(самовар.energy, 50.0)
-        self.assertIs(самовар.envelope_intact, False)
-        self.assertIs(самовар.is_flying, True)
+        self.assertAlmostEqual(elapsed, 0.5, delta=DELTA)
+        self.assertEqual(samovar.position_km, 15.0)
+        self.assertEqual(samovar.energy, 50.0)
+        self.assertIs(samovar.envelope_intact, False)
+        self.assertIs(samovar.is_flying, True)
 
         # When: пытается лететь дальше с разорванным баллоном
         # Then
         with self.assertRaises(SamovarEnvelopeTorn):
-            пилот.лететь(1, "calm")
-        self.assertEqual(самовар.position_km, 15.0)
-        self.assertEqual(самовар.energy, 50.0)
+            pilot.fly(1, "calm")
+        self.assertEqual(samovar.position_km, 15.0)
+        self.assertEqual(samovar.energy, 50.0)
 
         # When: аварийная посадка
-        пилот.сесть()
+        pilot.land()
         # Then
-        self.assertIs(самовар.is_flying, False)
-        self.assertIs(самовар.envelope_intact, False)
+        self.assertIs(samovar.is_flying, False)
+        self.assertIs(samovar.envelope_intact, False)
 
         # When: пытается снова взлететь без ремонта
         # Then
         with self.assertRaises(SamovarEnvelopeTorn):
-            пилот.взлететь()
-        self.assertIs(самовар.is_flying, False)
-        self.assertEqual(самовар.energy, 50.0)
+            pilot.take_off()
+        self.assertIs(samovar.is_flying, False)
+        self.assertEqual(samovar.energy, 50.0)
 
         # When: ремонтирует баллон
-        пилот.чинить_баллон()
+        pilot.repair_envelope()
         # Then
-        self.assertIs(самовар.envelope_intact, True)
-        self.assertEqual(самовар.energy, 35.0)
+        self.assertIs(samovar.envelope_intact, True)
+        self.assertEqual(samovar.energy, 35.0)
 
         # When: взлетает снова
-        пилот.взлететь()
+        pilot.take_off()
         # Then: итоговое состояние
-        self.assertIs(самовар.is_flying, True)
-        self.assertEqual(самовар.energy, 25.0)
-        self.assertEqual(самовар.position_km, 15.0)
-        self.assertIs(самовар.envelope_intact, True)
-        self.assertEqual(самовар.load_kg, 0.0)
+        self.assertIs(samovar.is_flying, True)
+        self.assertEqual(samovar.energy, 25.0)
+        self.assertEqual(samovar.position_km, 15.0)
+        self.assertIs(samovar.envelope_intact, True)
+        self.assertEqual(samovar.load_kg, 0.0)
 
     def test_TC_22_overweight_and_empty_tank(self):
         """TC-22: сценарий 7 «Перегруз и пустой бак»."""
         # Given
-        самовар = make(mass_kg=120, envelope_volume_m3=400, max_speed_kmh=40, energy=12)
-        пилот = Pilot(самовар)
+        samovar = make(mass_kg=120, envelope_volume_m3=400, max_speed_kmh=40, energy=12)
+        pilot = Pilot(samovar)
 
         # When: пытается взлететь с 90 кг (120 + 90 > 200)
         # Then
         with self.assertRaises(SamovarOverweight):
-            пилот.взлететь(90)
-        self.assertIs(самовар.is_flying, False)
-        self.assertEqual(самовар.energy, 12.0)
-        self.assertEqual(самовар.load_kg, 0.0)
+            pilot.take_off(90)
+        self.assertIs(samovar.is_flying, False)
+        self.assertEqual(samovar.energy, 12.0)
+        self.assertEqual(samovar.load_kg, 0.0)
 
         # When: взлетает с 80 кг (ровно предел)
-        пилот.взлететь(80)
+        pilot.take_off(80)
         # Then
-        self.assertIs(самовар.is_flying, True)
-        self.assertEqual(самовар.load_kg, 80.0)
-        self.assertEqual(самовар.energy, 2.0)
+        self.assertIs(samovar.is_flying, True)
+        self.assertEqual(samovar.load_kg, 80.0)
+        self.assertEqual(samovar.energy, 2.0)
 
         # When: пытается пролететь 2 км в штиль (нужно 4)
         # Then
         with self.assertRaises(SamovarNoEnergy):
-            пилот.лететь(2, "calm")
-        self.assertEqual(самовар.position_km, 0.0)
-        self.assertEqual(самовар.energy, 2.0)
+            pilot.fly(2, "calm")
+        self.assertEqual(samovar.position_km, 0.0)
+        self.assertEqual(samovar.energy, 2.0)
 
         # When: летит 2 км с попутным ветром (нужно 2)
-        время = пилот.лететь(2, "tailwind")
+        elapsed = pilot.fly(2, "tailwind")
         # Then
-        self.assertAlmostEqual(время, 2 / 60, places=PLACES)
-        self.assertEqual(самовар.position_km, 2.0)
-        self.assertEqual(самовар.energy, 0.0)
+        self.assertAlmostEqual(elapsed, 2 / 60, delta=DELTA)
+        self.assertEqual(samovar.position_km, 2.0)
+        self.assertEqual(samovar.energy, 0.0)
 
         # When: пытается лететь ещё 1 км
         # Then
         with self.assertRaises(SamovarNoEnergy):
-            пилот.лететь(1, "tailwind")
-        self.assertEqual(самовар.position_km, 2.0)
-        self.assertEqual(самовар.energy, 0.0)
+            pilot.fly(1, "tailwind")
+        self.assertEqual(samovar.position_km, 2.0)
+        self.assertEqual(samovar.energy, 0.0)
 
         # When: садится
-        пилот.сесть()
+        pilot.land()
         # Then
-        self.assertIs(самовар.is_flying, False)
-        self.assertEqual(самовар.load_kg, 0.0)
+        self.assertIs(samovar.is_flying, False)
+        self.assertEqual(samovar.load_kg, 0.0)
 
         # When: пытается взлететь с пустым баком
         # Then
         with self.assertRaises(SamovarNoEnergy):
-            пилот.взлететь()
-        self.assertIs(самовар.is_flying, False)
-        self.assertEqual(самовар.energy, 0.0)
+            pilot.take_off()
+        self.assertIs(samovar.is_flying, False)
+        self.assertEqual(samovar.energy, 0.0)
 
         # When: заправляется «с запасом» и взлетает
-        пилот.заправиться(1000)
-        self.assertEqual(самовар.energy, 100.0)
-        пилот.взлететь()
+        pilot.refuel(1000)
+        self.assertEqual(samovar.energy, 100.0)
+        pilot.take_off()
         # Then: итоговое состояние
-        self.assertIs(самовар.is_flying, True)
-        self.assertEqual(самовар.energy, 90.0)
-        self.assertEqual(самовар.position_km, 2.0)
-        self.assertEqual(самовар.load_kg, 0.0)
+        self.assertIs(samovar.is_flying, True)
+        self.assertEqual(samovar.energy, 90.0)
+        self.assertEqual(samovar.position_km, 2.0)
+        self.assertEqual(samovar.load_kg, 0.0)
 
     def test_TC_23_big_envelope_liner(self):
         """TC-23: сценарий 8 «Облачный Лайнер: большой баллон»."""
         # Given
-        самовар = FlyingSamovar("Облачный Лайнер", 300, 800, 30, 60)
-        пилот = Pilot(самовар)
-        self.assertEqual(самовар.lift_capacity_kg, 400.0)
+        samovar = FlyingSamovar("Облачный Лайнер", 300, 800, 30, 60)
+        pilot = Pilot(samovar)
+        self.assertEqual(samovar.lift_capacity_kg, 400.0)
 
         # When: проверка препятствий на земле
         # Then
-        self.assertIs(пилот.проверить_препятствие("gorge"), False)
-        self.assertIs(пилот.проверить_препятствие("tree"), False)
-        self.assertIs(пилот.проверить_препятствие("mountain"), False)
+        self.assertIs(pilot.check_obstacle("gorge"), False)
+        self.assertIs(pilot.check_obstacle("tree"), False)
+        self.assertIs(pilot.check_obstacle("mountain"), False)
 
         # When: взлёт с 100 кг (300 + 100 == 400, ровно предел)
-        пилот.взлететь(100)
+        pilot.take_off(100)
         # Then
-        self.assertIs(самовар.is_flying, True)
-        self.assertEqual(самовар.load_kg, 100.0)
-        self.assertEqual(самовар.energy, 50.0)
-        self.assertIs(пилот.проверить_препятствие("tree"), True)
-        self.assertIs(пилот.проверить_препятствие("mountain"), True)
-        self.assertIs(пилот.проверить_препятствие("gorge"), False)
+        self.assertIs(samovar.is_flying, True)
+        self.assertEqual(samovar.load_kg, 100.0)
+        self.assertEqual(samovar.energy, 50.0)
+        self.assertIs(pilot.check_obstacle("tree"), True)
+        self.assertIs(pilot.check_obstacle("mountain"), True)
+        self.assertIs(pilot.check_obstacle("gorge"), False)
 
         # When: 10 км при встречном ветре
-        время = пилот.лететь(10, "headwind")
+        elapsed = pilot.fly(10, "headwind")
         # Then
-        self.assertAlmostEqual(время, 10 / 15, places=PLACES)
-        self.assertEqual(самовар.position_km, 10.0)
-        self.assertEqual(самовар.energy, 20.0)
-        self.assertIs(пилот.проверить_препятствие("mountain"), False)
+        self.assertAlmostEqual(elapsed, 10 / 15, delta=DELTA)
+        self.assertEqual(samovar.position_km, 10.0)
+        self.assertEqual(samovar.energy, 20.0)
+        self.assertIs(pilot.check_obstacle("mountain"), False)
 
         # When: 7 км в штиль
-        время = пилот.лететь(7, "calm")
+        elapsed = pilot.fly(7, "calm")
         # Then
-        self.assertAlmostEqual(время, 7 / 30, places=PLACES)
-        self.assertEqual(самовар.position_km, 17.0)
-        self.assertEqual(самовар.energy, 6.0)
+        self.assertAlmostEqual(elapsed, 7 / 30, delta=DELTA)
+        self.assertEqual(samovar.position_km, 17.0)
+        self.assertEqual(samovar.energy, 6.0)
 
         # When: ещё 4 км в штиль (нужно 8)
         # Then
         with self.assertRaises(SamovarNoEnergy):
-            пилот.лететь(4, "calm")
+            pilot.fly(4, "calm")
         # Then: итоговое состояние
-        self.assertEqual(самовар.position_km, 17.0)
-        self.assertEqual(самовар.energy, 6.0)
-        self.assertIs(самовар.is_flying, True)
-        self.assertEqual(самовар.load_kg, 100.0)
-        self.assertIs(самовар.envelope_intact, True)
+        self.assertEqual(samovar.position_km, 17.0)
+        self.assertEqual(samovar.energy, 6.0)
+        self.assertIs(samovar.is_flying, True)
+        self.assertEqual(samovar.load_kg, 100.0)
+        self.assertIs(samovar.envelope_intact, True)
 
 
 if __name__ == "__main__":
